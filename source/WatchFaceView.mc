@@ -4,17 +4,46 @@ import Toybox.Lang;
 import Toybox.System;
 import Toybox.WatchUi;
 import Toybox.Time;
+import Toybox.Weather;
+import Toybox.Complications;
 
 class WatchFaceView extends WatchUi.WatchFace {
 
     private var _screenCenterPoint as Array<Number>;
-    private var systemSettings as DeviceSettings;
     private var _showWatchHands as Boolean;
-    private var clockTime as ClockTime;
     private var _isAwake as Boolean;
-    private var now as Time.Moment;
     private var _fullScreenRefresh as Boolean;
     private var _showTimeTickToggle;
+    
+    private var systemSettings as DeviceSettings;
+    private var clockTime as ClockTime;
+    private var now as Time.Moment;
+    private var currentWeather as CurrentConditions?;
+
+    // Drawables
+    private var batteryReferences as Array<BitmapReference>?;
+    private var personWalkin as BitmapReference?;
+    private var sunriseIcon as BitmapReference?;
+    private var floorsIcon as BitmapReference?;
+    
+    // Layout
+    private var battDLabel as Text?;
+    private var steppDLabel as Text?;
+    private var floorLabel as Text?;
+    private var sunriseDLabel as Text?;
+    private var sunsetDLabel as Text?;
+
+    // Complications
+    private var currentTemp as Number?;
+    private var currentTempComplicationId as Complications.Id?;
+    private var currentStep as Number?;
+    private var currentStepComplicationId as Complications.Id?;
+    private var nextSunrise as Number?;
+    private var nextSunriseComplicationId as Complications.Id?;
+    private var nextSunset as Number?;
+    private var nextSunsetComplicationId as Complications.Id?;
+    private var currentFloors as Number?;
+    private var currentFloorComplicationId as Complications.Id?;
 
     function initialize() {
         WatchFace.initialize();
@@ -26,17 +55,38 @@ class WatchFaceView extends WatchUi.WatchFace {
         clockTime = System.getClockTime();
         now = Time.now() as Time.Moment;
         _showTimeTickToggle = true;
+
+        checkComplications();
     }
 
     // Load your resources here
     function onLayout(dc as Dc) as Void {
         setLayout(Rez.Layouts.WatchFace(dc));
+
+        battDLabel = View.findDrawableById("battDLabel") as Text;
+        steppDLabel = View.findDrawableById("steppDLabel") as Text;
+        floorLabel = View.findDrawableById("floorLabel") as Text;
+        sunriseDLabel = View.findDrawableById("sunriseDLabel") as Text;
+        sunsetDLabel = View.findDrawableById("sunsetDLabel") as Text;
+        
+        batteryReferences = new Array<BitmapReference>[5];
+        batteryReferences[0] = WatchUi.loadResource($.Rez.Drawables.batteryEmpty) as BitmapReference;
+        batteryReferences[1] = WatchUi.loadResource($.Rez.Drawables.batteryQuarter) as BitmapReference;
+        batteryReferences[2] = WatchUi.loadResource($.Rez.Drawables.batteryHalf) as BitmapReference;
+        batteryReferences[3] = WatchUi.loadResource($.Rez.Drawables.batteryThreeQuarters) as BitmapReference;
+        batteryReferences[4] = WatchUi.loadResource($.Rez.Drawables.batteryFull) as BitmapReference;
+
+        personWalkin = WatchUi.loadResource($.Rez.Drawables.personWalkin) as BitmapReference;
+        sunriseIcon = WatchUi.loadResource($.Rez.Drawables.sunriseIcon) as BitmapReference;
+        floorsIcon = WatchUi.loadResource($.Rez.Drawables.floorsIcon) as BitmapReference;
     }
 
     // Called when this View is brought to the foreground. Restore
     // the state of this View and prepare it to be shown. This includes
     // loading resources into memory.
     function onShow() as Void {
+        subscribeComplications();
+        View.onShow();
     }
 
     // Update the view
@@ -44,14 +94,22 @@ class WatchFaceView extends WatchUi.WatchFace {
         now = Time.now() as Time.Moment;
         clockTime = System.getClockTime();
         _fullScreenRefresh = true;
+        currentWeather = Weather.getCurrentConditions();
         dc.clearClip();
-        drawBackgroundPolygon(dc);
+        // drawBackgroundPolygon(dc);
+        setBatDData();
+        setStepData();
+        setFloorpData();
+        setSunData();
+        View.onUpdate(dc);
         drawDateTimePolygon(dc);
         drawTickMarks(dc);
         drawDialNumbers(dc);
         drawTimeLabel(dc);
         drawDateLabel(dc);
         drawWeekDash(dc);
+        drawIcons(dc);
+        drawSunTriangles(dc);
         drawWatchHands(dc);
         if (_isAwake) {
             drawSecondHand(dc, false);
@@ -64,6 +122,8 @@ class WatchFaceView extends WatchUi.WatchFace {
     // state of this View here. This includes freeing resources from
     // memory.
     function onHide() as Void {
+        unsubscribeComplications();
+        View.onHide();
     }
 
     // The user has just looked at their watch. Timers and animations may be started here.
@@ -77,6 +137,88 @@ class WatchFaceView extends WatchUi.WatchFace {
         WatchUi.requestUpdate();
     }
 
+    private function setBatDData() as Void {
+        var battD = System.getSystemStats().batteryInDays.format("%.0f");
+        var battDString = Lang.format("$1$д", [battD]);
+        battDLabel.setText(battDString);
+    }
+
+    private function setStepData() as Void {
+        var currentStepString = "-----";
+        var zeros = "";
+        if (currentStep != null) {
+            if (currentStep instanceof Float) {
+                currentStepString = (currentStep * 1000).format("%.0f");
+            } else {
+                currentStepString = currentStep.format("%d");
+            }
+            // if (currentStep < 10) { zeros = "0000"; } else
+            // if (currentStep < 100) { zeros = "000"; } else 
+            // if (currentStep < 1000) { zeros = "00"; } else 
+            // if (currentStep < 10000) { zeros = "0"; }
+        }
+        steppDLabel.setText(Lang.format("$1$$2$", [zeros, currentStepString]));
+    }
+
+    private function setFloorpData() as Void {
+        var currentStepString = "-";
+        if (currentFloors != null) {
+            currentStepString = currentFloors.format("%d");
+        }
+        floorLabel.setText(Lang.format("$1$", [currentStepString]));
+    }
+    
+    private function setSunData() as Void {
+        if (nextSunrise != null) {
+            var hours = Math.floor(nextSunrise / 3600);
+            var minutes = Math.floor((nextSunrise - (hours * 3600)) / 60);
+            if (minutes < 10) { minutes = Lang.format("0$1$", [minutes]); }
+            sunriseDLabel.setText(Lang.format("$1$:$2$", [hours, minutes]));
+        }
+
+        if (nextSunset != null) {
+            var hours = Math.floor(nextSunset / 3600);
+            var minutes = Math.floor((nextSunset - (hours * 3600)) / 60);
+            if (minutes < 10) { minutes = Lang.format("0$1$", [minutes]); }
+            sunsetDLabel.setText(Lang.format("$1$:$2$", [hours, minutes]));
+        }
+    }
+    
+    private function drawSunTriangles(dc as Dc) as Void {
+        if (nextSunrise != null) {
+            var nextSunriseAngle = (nextSunrise.toFloat() / (60 * 60 * 12)) * Math.PI * 2;
+            dc.setColor(0x0055aa, Graphics.COLOR_BLACK);
+            dc.fillPolygon(getLeftTriangleMarker(_screenCenterPoint, nextSunriseAngle));
+            dc.setColor(0xffaaaa, Graphics.COLOR_BLACK);
+            dc.fillPolygon(getRightTriangleMarker(_screenCenterPoint, nextSunriseAngle));
+        }
+
+        if (nextSunset != null) {
+            var nextSunsetAngle = (nextSunset.toFloat() / (60 * 60 * 12)) * Math.PI * 2;
+            dc.setColor(0xff5500, Graphics.COLOR_BLACK);
+            dc.fillPolygon(getLeftTriangleMarker(_screenCenterPoint, nextSunsetAngle));
+            dc.setColor(0x0055aa, Graphics.COLOR_BLACK);
+            dc.fillPolygon(getRightTriangleMarker(_screenCenterPoint, nextSunsetAngle));
+        }
+    }
+
+    private function drawIcons(dc as Dc) as Void {
+        var battD = System.getSystemStats().battery;
+        var battDString = Lang.format("$1$d", [battD]);
+        if (batteryReferences != null) {
+            var batteryBitmap = batteryReferences[4].get() as BitmapResource;
+            if(battD < 85) { batteryBitmap = batteryReferences[3].get() as BitmapResource; }
+            if(battD < 50) { batteryBitmap = batteryReferences[2].get() as BitmapResource; }
+            if(battD < 25) { batteryBitmap = batteryReferences[1].get() as BitmapResource; }
+            if(battD < 10) { batteryBitmap = batteryReferences[0].get() as BitmapResource; }
+            dc.drawBitmap2(-174, 45, batteryBitmap, {});
+        }
+
+        dc.drawBitmap2(0, 105, personWalkin, {});
+        dc.drawBitmap2(120, 131, sunriseIcon, {});
+        dc.drawBitmap2(50, 105, floorsIcon, {});
+    }
+
     private function drawBackgroundPolygon(dc as Dc) as Void {
         var bcPly = [
             [0, 0], [0, 260], [260, 260], [260, 0]
@@ -87,7 +229,7 @@ class WatchFaceView extends WatchUi.WatchFace {
 
     private function drawDateTimePolygon(dc as Dc) as Void {
         var digitalPoligonm = [
-            [45, 159], [215, 159], [215, 190], [185, 218], [75, 218], [45, 190]
+            [45, 158], [215, 158], [215, 190], [185, 218], [75, 218], [45, 190]
         ];
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.fillPolygon(digitalPoligonm);
@@ -106,7 +248,7 @@ class WatchFaceView extends WatchUi.WatchFace {
             :locY=>144, :justification=>Graphics.TEXT_JUSTIFY_CENTER
         }).draw(dc);
          new WatchUi.Text({
-            :text=>hour, :color=>Graphics.COLOR_BLACK, :font=>Graphics.FONT_NUMBER_MEDIUM,
+            :text=>minute, :color=>Graphics.COLOR_BLACK, :font=>Graphics.FONT_NUMBER_MEDIUM,
             :locX=>168,
             :locY=>144, :justification=>Graphics.TEXT_JUSTIFY_CENTER
         }).draw(dc);
@@ -149,6 +291,9 @@ class WatchFaceView extends WatchUi.WatchFace {
     private function drawTickMarks(dc as Dc) as Void {
         dc.setAntiAlias(true);
         var width = dc.getWidth();
+        for (var i = 0; i <= 59; i++) {
+            var angle = (i * 6 * Math.PI) / 180;
+        }
         for (var i = 0; i <= 59; i++) {
             var angle = (i * 6 * Math.PI) / 180;
             var outerRad = width / 2;
@@ -234,6 +379,7 @@ class WatchFaceView extends WatchUi.WatchFace {
         }
         while( drawX <= endPoint);
         var weekNames = ["ПН", "ВТ", "СР", "ЧТ", "ПТ", "СБ", "ВС"];
+        var weekMapping = [7, 1, 2, 3, 4, 5, 6];
         var weekNamesCoords = new [7];
         var weekNameCoordCalc = startPoint;
         for( var i = 0 ; i < 7 ; i++ ) {
@@ -242,12 +388,13 @@ class WatchFaceView extends WatchUi.WatchFace {
         }
         var today = Gregorian.info(Time.today(), Time.FORMAT_SHORT);
         var dayOfWeek = today.day_of_week;
+        dayOfWeek = weekMapping[dayOfWeek-1];
         for( var i = 0 ; i < weekNames.size() ; i++ ) {
             var weekName = weekNames[i];
             var placeX = weekNamesCoords[i];
-            var isActive = i+1 == (dayOfWeek - 1);
+            var isActive = i + 1 == dayOfWeek;
             var color = Graphics.COLOR_WHITE;
-            if (i > 5) { color = Graphics.COLOR_RED; }
+            if (i >= 5) { color = Graphics.COLOR_RED; }
             if (isActive) {
                 color = Graphics.COLOR_BLACK;
                 var activePolygonPoints = getActiveDayPolydon(i, startPoint, gap, upperY, lowerY);
@@ -303,6 +450,25 @@ class WatchFaceView extends WatchUi.WatchFace {
         width as Number
     ) as Array<Array<Float> > {
         var coords = [[-width, -130], [-width, -height], [0, -(height - 5)], [width, -height],  [width, -130]] as Array<Array<Number> >;
+        return rotatePoints(centerPoint, coords, angle);
+    }
+      private function getLeftTriangleMarker(centerPoint as Array<Number>, angle as Float) as Array<Array<Float> > {
+        var coords =
+        [
+            [-(16 / 2), -113] as Array<Number>,
+            [0, -130] as Array<Number>,
+            [0, -113] as Array<Number>,
+        ] as Array<Array<Number> >;
+        return rotatePoints(centerPoint, coords, angle);
+    }
+
+    private function getRightTriangleMarker(centerPoint as Array<Number>, angle as Float) as Array<Array<Float> > {
+        var coords =
+        [
+            [0, -113] as Array<Number>,
+            [0, -130] as Array<Number>,
+            [16 / 2, -113] as Array<Number>,
+        ] as Array<Array<Number> >;
         return rotatePoints(centerPoint, coords, angle);
     }
 
@@ -478,5 +644,86 @@ class WatchFaceView extends WatchUi.WatchFace {
             if (points[i][1] > max[1]) {max[1] = points[i][1];}
         }
         return [min, max] as Array<Array<Number or Float> >;
+    }
+
+    private function checkComplications() as Void {
+        var iter = Complications.getComplications();
+        var complication = iter.next();
+        while (complication != null) {
+            if (complication.getType() == Complications.COMPLICATION_TYPE_CURRENT_TEMPERATURE) {
+                currentTempComplicationId = complication.complicationId;
+            }
+            if (complication.getType() == Complications.COMPLICATION_TYPE_STEPS) {
+                currentStepComplicationId = complication.complicationId;
+            }
+            if (complication.getType() == Complications.COMPLICATION_TYPE_FLOORS_CLIMBED) {
+                currentFloorComplicationId = complication.complicationId;
+            }
+            if (complication.getType() == Complications.COMPLICATION_TYPE_SUNRISE) {
+                nextSunriseComplicationId = complication.complicationId;
+            }
+            if (complication.getType() == Complications.COMPLICATION_TYPE_SUNSET) {
+                nextSunsetComplicationId = complication.complicationId;
+            }
+            complication = iter.next();
+        }
+    }
+
+    private function unsubscribeComplications() as Void {
+        Complications.unsubscribeFromAllUpdates();
+        Complications.registerComplicationChangeCallback(null);
+    }
+    
+    private function subscribeComplications() as Void {
+        Complications.registerComplicationChangeCallback(
+            self.method(:onComplicationChanged)
+        );
+        if (currentTempComplicationId != null) {
+            Complications.subscribeToUpdates(currentTempComplicationId);
+        }
+        if (currentStepComplicationId != null) {
+            Complications.subscribeToUpdates(currentStepComplicationId);
+        }
+        if (currentFloorComplicationId != null) {
+            Complications.subscribeToUpdates(currentFloorComplicationId);
+        }
+        if (nextSunriseComplicationId != null) {
+            Complications.subscribeToUpdates(nextSunriseComplicationId);
+        }
+        if (nextSunsetComplicationId != null) {
+            Complications.subscribeToUpdates(nextSunsetComplicationId);
+        }
+    }
+
+    function onComplicationChanged(complicationId as Complications.Id) as Void {
+        var data = Complications.getComplication(complicationId);
+        var dataValue = data.value;
+
+        if (complicationId == currentTempComplicationId) {
+            if (dataValue != null) {
+                currentTemp = dataValue as Lang.Number;
+            }
+        }
+        if (complicationId == currentStepComplicationId) {
+            if (dataValue != null) {
+                currentStep = dataValue as Lang.Number;
+            }
+        }
+        if (complicationId == currentFloorComplicationId) {
+            if (dataValue != null) {
+                currentFloors = dataValue as Lang.Number;
+            }
+        }
+        if (complicationId == nextSunriseComplicationId) {
+            if (dataValue != null) {
+                nextSunrise = dataValue as Lang.Number;
+            }
+        }
+
+        if (complicationId == nextSunsetComplicationId) {
+            if (dataValue != null) {
+                nextSunset = dataValue as Lang.Number;
+            }
+        }
     }
 }

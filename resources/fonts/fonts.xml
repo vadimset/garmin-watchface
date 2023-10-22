@@ -1,0 +1,4 @@
+<fonts>
+	<font id="WeatherIconsFontDay" filename="weather/weather-icons-24.fnt" antialias="true" filter="ABCDEFGHI"/>
+	<font id="WeatherIconsFontNight" filename="weather/weather-icons-24.fnt" antialias="true" filter="abcdefghI"/>
+</fonts>

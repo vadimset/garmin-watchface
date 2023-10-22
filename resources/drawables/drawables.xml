@@ -1,3 +1,11 @@
 <drawables>
     <bitmap id="LauncherIcon" filename="launcher_icon.png" />
+    <bitmap id="batteryFull" filename="battery/battery-full.svg" />
+    <bitmap id="batteryQuarter" filename="battery/battery-quarter.svg" />
+    <bitmap id="batteryHalf" filename="battery/battery-half.svg" />
+    <bitmap id="batteryThreeQuarters" filename="battery/battery-three-quarters.svg" />
+    <bitmap id="batteryEmpty" filename="battery/battery-empty.svg" />
+    <bitmap id="personWalkin" filename="person-walking.svg" />
+    <bitmap id="sunriseIcon" filename="sunrise-svgrepo-com.svg" />
+    <bitmap id="floorsIcon" filename="stairs-svgrepo-com.svg" />
 </drawables>
