@@ -8,4 +8,26 @@
     <bitmap id="personWalkin" filename="person-walking.svg" />
     <bitmap id="sunriseIcon" filename="sunrise-svgrepo-com.svg" />
     <bitmap id="floorsIcon" filename="stairs-svgrepo-com.svg" />
+    
+    <bitmap id="weatherClear" filename="weather/sun-brightness-daylight-svgrepo-com.svg" />
+    <bitmap id="partlyCloudy" filename="weather/weather-icons-17-partly-cloud.svg" />
+    <bitmap id="cloudy" filename="weather/weather-icons-16-scloud.svg" />
+    <bitmap id="rain" filename="weather/weather-icons-19-rain.svg" />
+    <bitmap id="snow" filename="weather/weather-icons-31-snow.svg" />
+    <bitmap id="windy" filename="weather/weather-icons-57-wing.svg" />
+    <bitmap id="thunder" filename="weather/weather-icons-28-thunder.svg" />
+    <bitmap id="mixed" filename="weather/hail-mixed-svgrepo-com.svg" />
+    <bitmap id="fog" filename="weather/weather-icons-39-fog.svg" />
+    <bitmap id="hail" filename="weather/weather-icons-54-hail.svg" />
+    <bitmap id="thunderRain" filename="weather/thunderstorm-wind-gale-svgrepo-com.svg" />
+    <bitmap id="unknown" filename="weather/warning-alert-bad-svgrepo-com.svg" />
+
+    <bitmap id="moonphase0" filename="moon-phases/0.svg" x="center" y="center" />
+    <bitmap id="moonphase1" filename="moon-phases/1.svg" x="center" y="center" />
+    <bitmap id="moonphase2" filename="moon-phases/2.svg" x="center" y="center" />
+    <bitmap id="moonphase3" filename="moon-phases/3.svg" x="center" y="center" />
+    <bitmap id="moonphase4" filename="moon-phases/4.svg" x="center" y="center" />
+    <bitmap id="moonphase5" filename="moon-phases/5.svg" x="center" y="center" />
+    <bitmap id="moonphase6" filename="moon-phases/6.svg" x="center" y="center" />
+    <bitmap id="moonphase7" filename="moon-phases/7.svg" x="center" y="center" />
 </drawables>

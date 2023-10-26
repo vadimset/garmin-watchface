@@ -14,6 +14,8 @@ class WatchFaceView extends WatchUi.WatchFace {
     private var _isAwake as Boolean;
     private var _fullScreenRefresh as Boolean;
     private var _showTimeTickToggle;
+    private var _weatherIconMap;
+    private var _weatherIcons;
     
     private var systemSettings as DeviceSettings;
     private var clockTime as ClockTime;
@@ -25,6 +27,7 @@ class WatchFaceView extends WatchUi.WatchFace {
     private var personWalkin as BitmapReference?;
     private var sunriseIcon as BitmapReference?;
     private var floorsIcon as BitmapReference?;
+    private var moonPhaseReferences as Array<BitmapReference>?;
     
     // Layout
     private var battDLabel as Text?;
@@ -32,6 +35,11 @@ class WatchFaceView extends WatchUi.WatchFace {
     private var floorLabel as Text?;
     private var sunriseDLabel as Text?;
     private var sunsetDLabel as Text?;
+    private var feelsLikeLabel as Text?;
+    private var tempLabel as Text?;
+
+    private var currentMoonphase as Number?;
+    private var moonphaseLastCalculated as Moment?;
 
     // Complications
     private var currentTemp as Number?;
@@ -47,14 +55,87 @@ class WatchFaceView extends WatchUi.WatchFace {
 
     function initialize() {
         WatchFace.initialize();
-        _fullScreenRefresh = true;
         systemSettings = System.getDeviceSettings();
+        clockTime = System.getClockTime();
+        now = Time.now() as Time.Moment;
+        _fullScreenRefresh = true;
         _screenCenterPoint = [systemSettings.screenWidth / 2, systemSettings.screenHeight / 2] as Array<Number>;
         _showWatchHands = true;
         _isAwake = true;
-        clockTime = System.getClockTime();
-        now = Time.now() as Time.Moment;
         _showTimeTickToggle = true;
+
+        _weatherIcons = {
+            "weatherClear" => WatchUi.loadResource($.Rez.Drawables.weatherClear),
+            "partlyCloudy" => WatchUi.loadResource($.Rez.Drawables.partlyCloudy),
+            "cloudy" => WatchUi.loadResource($.Rez.Drawables.cloudy),
+            "rain" => WatchUi.loadResource($.Rez.Drawables.rain),
+            "snow" => WatchUi.loadResource($.Rez.Drawables.snow),
+            "windy" => WatchUi.loadResource($.Rez.Drawables.windy),
+            "thunder" => WatchUi.loadResource($.Rez.Drawables.thunder),
+            "mixed" => WatchUi.loadResource($.Rez.Drawables.mixed),
+            "fog" => WatchUi.loadResource($.Rez.Drawables.fog),
+            "hail" => WatchUi.loadResource($.Rez.Drawables.hail),
+            "thunderRain" => WatchUi.loadResource($.Rez.Drawables.thunderRain),
+            "unknown" => WatchUi.loadResource($.Rez.Drawables.unknown),
+        };
+
+        _weatherIconMap = {
+            // Day icon                 Description
+            0 => "weatherClear",  // CONDITION_CLEAR
+            1 => "partlyCloudy",  // CONDITION_PARTLY_CLOUDY
+            2 => "cloudy",        // CONDITION_MOSTLY_CLOUDY
+            3 => "rain",          // CONDITION_RAIN
+            4 => "snow",          // CONDITION_SNOW
+            5 => "windy",         // CONDITION_WINDY
+            6 => "thunder",       // CONDITION_THUNDERSTORMS
+            7 => "mixed",         // CONDITION_WINTRY_MIX
+            8 => "fog",           // CONDITION_FOG
+            9 => "fog",           // CONDITION_HAZY
+            10 => "hail",         // CONDITION_HAIL
+            11 => "rain",         // CONDITION_SCATTERED_SHOWERS
+            12 => "thunderRain",  // CONDITION_SCATTERED_THUNDERSTORMS
+            13 => "unknown",      // CONDITION_UNKNOWN_PRECIPITATION
+            14 => "rain",         // CONDITION_LIGHT_RAIN
+            15 => "rain",         // CONDITION_HEAVY_RAIN
+            16 => "snow",         // CONDITION_LIGHT_SNOW
+            17 => "snow",         // CONDITION_HEAVY_SNOW
+            18 => "mixed",        // CONDITION_LIGHT_RAIN_SNOW
+            19 => "mixed",        // CONDITION_HEAVY_RAIN_SNOW
+            20 => "cloudy",       // CONDITION_CLOUDY
+            21 => "mixed",        // CONDITION_RAIN_SNOW
+            22 => "partlyCloudy", // CONDITION_PARTLY_CLEAR
+            23 => "partlyCloudy", // CONDITION_MOSTLY_CLEAR
+            24 => "rain",         // CONDITION_LIGHT_SHOWERS
+            25 => "rain",         // CONDITION_SHOWERS
+            26 => "rain",         // CONDITION_HEAVY_SHOWERS
+            27 => "rain",         // CONDITION_CHANCE_OF_SHOWERS
+            28 => "thunder",      // CONDITION_CHANCE_OF_THUNDERSTORMS
+            29 => "fog",          // CONDITION_MIST
+            30 => "fog",          // CONDITION_DUST
+            31 => "fog",          // CONDITION_DRIZZLE
+            32 => "thunder",      // CONDITION_TORNADO
+            33 => "fog",          // CONDITION_SMOKE
+            34 => "mix",          // CONDITION_ICE
+            35 => "fog",          // CONDITION_SAND
+            36 => "windy",        // CONDITION_SQUALL
+            37 => "fog",          // CONDITION_SANDSTORM
+            38 => "fog",          // CONDITION_VOLCANIC_ASH
+            39 => "fog",          // CONDITION_HAZE
+            40 => "weatherClear", // CONDITION_FAIR
+            41 => "windy",        // CONDITION_HURRICANE
+            42 => "windy",        // CONDITION_TROPICAL_STORM
+            43 => "snow",         // CONDITION_CHANCE_OF_SNOW
+            44 => "mixed",        // CONDITION_CHANCE_OF_RAIN_SNOW
+            45 => "rain",         // CONDITION_CLOUDY_CHANCE_OF_RAIN
+            46 => "snow",         // CONDITION_CLOUDY_CHANCE_OF_SNOW
+            47 => "mixed",        // CONDITION_CLOUDY_CHANCE_OF_RAIN_SNOW
+            48 => "windy",        // CONDITION_FLURRIES
+            49 => "rain",         // CONDITION_FREEZING_RAIN
+            50 => "snow",         // CONDITION_SLEET
+            51 => "snow",         // CONDITION_ICE_SNOW
+            52 => "partlyCloudy", // CONDITION_THIN_CLOUDS
+            53 => "unknown",      // CONDITION_UNKNOWN
+        };
 
         checkComplications();
     }
@@ -68,6 +149,8 @@ class WatchFaceView extends WatchUi.WatchFace {
         floorLabel = View.findDrawableById("floorLabel") as Text;
         sunriseDLabel = View.findDrawableById("sunriseDLabel") as Text;
         sunsetDLabel = View.findDrawableById("sunsetDLabel") as Text;
+        feelsLikeLabel = View.findDrawableById("feelsLikeLabel") as Text;
+        tempLabel = View.findDrawableById("tempLabel") as Text;
         
         batteryReferences = new Array<BitmapReference>[5];
         batteryReferences[0] = WatchUi.loadResource($.Rez.Drawables.batteryEmpty) as BitmapReference;
@@ -75,6 +158,16 @@ class WatchFaceView extends WatchUi.WatchFace {
         batteryReferences[2] = WatchUi.loadResource($.Rez.Drawables.batteryHalf) as BitmapReference;
         batteryReferences[3] = WatchUi.loadResource($.Rez.Drawables.batteryThreeQuarters) as BitmapReference;
         batteryReferences[4] = WatchUi.loadResource($.Rez.Drawables.batteryFull) as BitmapReference;
+
+        moonPhaseReferences = new Array<BitmapReference>[8];
+        moonPhaseReferences[0] = WatchUi.loadResource($.Rez.Drawables.moonphase0) as BitmapReference;
+        moonPhaseReferences[1] = WatchUi.loadResource($.Rez.Drawables.moonphase1) as BitmapReference;
+        moonPhaseReferences[2] = WatchUi.loadResource($.Rez.Drawables.moonphase2) as BitmapReference;
+        moonPhaseReferences[3] =  WatchUi.loadResource($.Rez.Drawables.moonphase3) as BitmapReference;
+        moonPhaseReferences[4] = WatchUi.loadResource($.Rez.Drawables.moonphase4) as BitmapReference;
+        moonPhaseReferences[5] = WatchUi.loadResource($.Rez.Drawables.moonphase5) as BitmapReference;
+        moonPhaseReferences[6] = WatchUi.loadResource($.Rez.Drawables.moonphase6) as BitmapReference;
+        moonPhaseReferences[7] = WatchUi.loadResource($.Rez.Drawables.moonphase7) as BitmapReference;
 
         personWalkin = WatchUi.loadResource($.Rez.Drawables.personWalkin) as BitmapReference;
         sunriseIcon = WatchUi.loadResource($.Rez.Drawables.sunriseIcon) as BitmapReference;
@@ -101,7 +194,10 @@ class WatchFaceView extends WatchUi.WatchFace {
         setStepData();
         setFloorpData();
         setSunData();
+        setWeatherData();
+
         View.onUpdate(dc);
+        
         drawDateTimePolygon(dc);
         drawTickMarks(dc);
         drawDialNumbers(dc);
@@ -109,11 +205,10 @@ class WatchFaceView extends WatchUi.WatchFace {
         drawDateLabel(dc);
         drawWeekDash(dc);
         drawIcons(dc);
+        drawMoonPhase(dc);
         drawSunTriangles(dc);
-        drawWatchHands(dc);
-        if (_isAwake) {
-            drawSecondHand(dc, false);
-        }
+        if(_showWatchHands) { drawWatchHands(dc); }
+        if (_isAwake && _showWatchHands) { drawSecondHand(dc, false); }
 
         _fullScreenRefresh = false;
     }
@@ -137,6 +232,11 @@ class WatchFaceView extends WatchUi.WatchFace {
         WatchUi.requestUpdate();
     }
 
+    public function toggleWatchHands() as Void {
+        _showWatchHands = !_showWatchHands;
+        WatchUi.requestUpdate();
+    }
+
     private function setBatDData() as Void {
         var battD = System.getSystemStats().batteryInDays.format("%.0f");
         var battDString = Lang.format("$1$д", [battD]);
@@ -152,10 +252,6 @@ class WatchFaceView extends WatchUi.WatchFace {
             } else {
                 currentStepString = currentStep.format("%d");
             }
-            // if (currentStep < 10) { zeros = "0000"; } else
-            // if (currentStep < 100) { zeros = "000"; } else 
-            // if (currentStep < 1000) { zeros = "00"; } else 
-            // if (currentStep < 10000) { zeros = "0"; }
         }
         steppDLabel.setText(Lang.format("$1$$2$", [zeros, currentStepString]));
     }
@@ -166,6 +262,16 @@ class WatchFaceView extends WatchUi.WatchFace {
             currentStepString = currentFloors.format("%d");
         }
         floorLabel.setText(Lang.format("$1$", [currentStepString]));
+    }
+
+    private function setWeatherData() as Void {
+        if (currentWeather == null) {
+            feelsLikeLabel.setText("--°");
+            tempLabel.setText("--°");
+        }
+
+        feelsLikeLabel.setText( Lang.format("$1$°", [currentWeather.feelsLikeTemperature]));
+        tempLabel.setText(Lang.format("$1$°", [currentWeather.temperature]));
     }
     
     private function setSunData() as Void {
@@ -213,11 +319,33 @@ class WatchFaceView extends WatchUi.WatchFace {
             if(battD < 10) { batteryBitmap = batteryReferences[0].get() as BitmapResource; }
             dc.drawBitmap2(-174, 45, batteryBitmap, {});
         }
-
-        dc.drawBitmap2(0, 105, personWalkin, {});
+        dc.drawBitmap2(-5, 107, personWalkin, {});
+        dc.drawBitmap2(145, 86, floorsIcon, {});
         dc.drawBitmap2(120, 131, sunriseIcon, {});
-        dc.drawBitmap2(50, 105, floorsIcon, {});
+        var weatherIconString = _weatherIconMap[currentWeather.condition];
+        if(weatherIconString) {
+            var icon = _weatherIcons[weatherIconString];
+            dc.drawBitmap2(70, 99, icon, {});
+        }
     }
+
+    private function drawMoonPhase(dc as Dc) as Void {
+        if (currentMoonphase == null || (moonphaseLastCalculated != null && now.compare(moonphaseLastCalculated) > 3600)) {
+            // Moonphase outdated or not available
+            var utcInfo = Gregorian.utcInfo(now, Time.FORMAT_SHORT);
+            currentMoonphase = getMoonPhase(
+                utcInfo.year,
+                utcInfo.month,
+                utcInfo.day,
+                utcInfo.hour
+            );
+            moonphaseLastCalculated = now;
+        }
+        if (moonPhaseReferences != null) {
+        var moonPhaseBitmap = moonPhaseReferences[currentMoonphase].get() as BitmapResource;
+        dc.drawBitmap2(120, 107, moonPhaseBitmap, {});
+        }
+  }
 
     private function drawBackgroundPolygon(dc as Dc) as Void {
         var bcPly = [
@@ -229,7 +357,7 @@ class WatchFaceView extends WatchUi.WatchFace {
 
     private function drawDateTimePolygon(dc as Dc) as Void {
         var digitalPoligonm = [
-            [45, 158], [215, 158], [215, 190], [185, 218], [75, 218], [45, 190]
+            [45, 155], [215, 155], [215, 190], [180, 217], [80, 217], [45, 190]
         ];
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.fillPolygon(digitalPoligonm);
@@ -284,41 +412,46 @@ class WatchFaceView extends WatchUi.WatchFace {
         text.draw(dc);
     }
 
-    private const smallHashLength = 4;
-    private const bigHashLength = 10;
     //! Draws the clock tick marks around the outside edges of the screen.
     //! @param dc Device context
     private function drawTickMarks(dc as Dc) as Void {
         dc.setAntiAlias(true);
         var width = dc.getWidth();
-        for (var i = 0; i <= 59; i++) {
-            var angle = (i * 6 * Math.PI) / 180;
+        var outerRad = width / 2;
+        var innerRad = outerRad - 4;
+        var innerRadbig = outerRad - 10;
+        for (var i = 0; i <= 118; i++) {
+            var angle = (i * 3 * Math.PI) / 180;
+            dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
+            dc.setPenWidth(1);
+            var tickPoints = getTickPoints(width, outerRad, innerRad, angle);
+            dc.drawLine(tickPoints[0], tickPoints[1], tickPoints[2], tickPoints[3]);
         }
         for (var i = 0; i <= 59; i++) {
             var angle = (i * 6 * Math.PI) / 180;
-            var outerRad = width / 2;
-            var innerRad = outerRad - smallHashLength;
+            
             if (i == 0 || i == 15 || i  == 30 || i == 45 || i == 60) {
-                innerRad = outerRad - bigHashLength;
+                
                 dc.setPenWidth(8);
-                var tickPoints = getTickPoints(outerRad, innerRad, angle);
+                var tickPoints = getTickPoints(width, outerRad, innerRadbig, angle);
                 dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
                 dc.drawLine(tickPoints[0], tickPoints[1], tickPoints[2], tickPoints[3]);
                 dc.setColor(Graphics.COLOR_RED, Graphics.COLOR_BLACK);
                 dc.fillPolygon(getTriangleTick(_screenCenterPoint, angle));
-            } else if(i == 5 || i == 10 || i == 50 || i == 55) {
+            } else if(i == 5 || i == 55) {
                 dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
                 dc.fillPolygon(getTriangLongleTick(_screenCenterPoint, angle, 100, 5));
-            } else if(i == 20 || i == 40) {
+            } else if(i == 20 || i == 40 || i == 10 || i == 50) {
                 dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
                 dc.fillPolygon(getTriangLongleTick(_screenCenterPoint, angle, 105, 5));
             } else if(i == 25 || i == 35) {
                 dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
-                dc.fillPolygon(getTriangLongleTick(_screenCenterPoint, angle, 111, 5));
+                dc.fillPolygon(getTriangLongleTick(_screenCenterPoint, angle, 109, 5));
             }  else {
                 dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
                 dc.setPenWidth(1);
-                var tickPoints = getTickPoints(outerRad, innerRad, angle);
+                var gap = 10;
+                var tickPoints = getTickPoints(width, (outerRad - gap), (innerRad - gap), angle);
                 dc.drawLine(tickPoints[0], tickPoints[1], tickPoints[2], tickPoints[3]);
             }
         }
@@ -326,11 +459,13 @@ class WatchFaceView extends WatchUi.WatchFace {
         dc.fillPolygon(getTriangleTick(_screenCenterPoint, 0.0));
     }
 
-    private function getTickPoints(outerRad, innerRad, angle) {
-        var sY = outerRad + innerRad * Math.cos(angle);
-        var eY = outerRad + outerRad * Math.cos(angle);
-        var sX = outerRad + innerRad * Math.sin(angle);
-        var eX = outerRad + outerRad * Math.sin(angle);
+    private function getTickPoints(width, outerRad, innerRad, angle) {
+        width /= 2;
+        var sY = width + innerRad * Math.cos(angle);
+        var sX = width + innerRad * Math.sin(angle);
+        
+        var eY = width + outerRad * Math.cos(angle);
+        var eX = width + outerRad * Math.sin(angle);
         return [sX, sY, eX, eY];
     }
     
@@ -364,8 +499,8 @@ class WatchFaceView extends WatchUi.WatchFace {
     private function drawWeekDash(dc as Dc) as Void {
         dc.setColor(Graphics.COLOR_WHITE, Graphics.COLOR_BLACK);
         dc.setPenWidth(1);
-        var startPoint = 53;
-        var endPoint = 207;
+        var startPoint = 49;
+        var endPoint = 210;
         var upperY = 66;
         var lowerY = 82;
         var gap = (endPoint - startPoint) / 7; 
@@ -574,9 +709,9 @@ class WatchFaceView extends WatchUi.WatchFace {
         var coords =
         [ 
             [-(3), -25] as Array<Number>,
-            [-(3), -115] as Array<Number>,
-            [0, -125] as Array<Number>,
-            [3, -115] as Array<Number>,
+            [-(3), -105] as Array<Number>,
+            [0, -115] as Array<Number>,
+            [3, -105] as Array<Number>,
             [3, -25] as Array<Number>,
             [0, -30] as Array<Number>,
         ] as Array<Array<Number> >;
@@ -590,12 +725,12 @@ class WatchFaceView extends WatchUi.WatchFace {
         // Map out the coordinates of the watch hand pointing down
         var coords =
         [
-            [-(1), -85] as Array<Number>,
-            [-(1), -110] as Array<Number>,
-            [0, -115] as Array<Number>,
-            [1, -110] as Array<Number>,
-            [1, -85] as Array<Number>,
-            [0, -90] as Array<Number>,
+            [-(1), -75] as Array<Number>,
+            [-(1), -100] as Array<Number>,
+            [0, -105] as Array<Number>,
+            [1, -100] as Array<Number>,
+            [1, -75] as Array<Number>,
+            [0, -65] as Array<Number>,
         ] as Array<Array<Number> >;
         return rotatePoints(centerPoint, coords, angle);
     }
@@ -644,6 +779,84 @@ class WatchFaceView extends WatchUi.WatchFace {
             if (points[i][1] > max[1]) {max[1] = points[i][1];}
         }
         return [min, max] as Array<Array<Number or Float> >;
+    }
+
+    private function getMoonPhase(
+        year as Number,
+        mon as Number,
+        day as Number,
+        hour as Number
+    ) as Number {
+        /*
+        calculates the moon phase (0-7), accurate to 1 segment.
+        0 = > new moon.
+        4 => full moon.
+        implementation from sffjunkie/astral
+        */
+
+        var jd = getJulianDay(year, mon, day, hour);
+        // System.println("Julian Day: " + jd.format("%f"));
+
+        var dt = Math.pow(jd - 2382148.0, 2) / (41048480.0 * 86400.0);
+        var t = (jd + dt - 2451545.0) / 36525.0;
+        var t2 = Math.pow(t, 2);
+        var t3 = Math.pow(t, 3);
+
+        var d = 297.85 + 445267.1115 * t - 0.00163 * t2 + t3 / 545868.0;
+        while (d > 360.0) {
+        d -= 360.0;
+        }
+        d = Math.toRadians(d);
+
+        var m = 357.53 + 35999.0503 * t;
+        while (m > 360.0) {
+        m -= 360.0;
+        }
+        m = Math.toRadians(m);
+
+        var m1 = 134.96 + 477198.8676 * t + 0.008997 * t2 + t3 / 69699.0;
+        while (m1 > 360.0) {
+        m1 -= 360.0;
+        }
+        m1 = Math.toRadians(m1);
+
+        var elong = Math.toDegrees(d) + 6.29 * Math.sin(m1);
+        elong -= 2.1 * Math.sin(m);
+        elong += 1.27 * Math.sin(2.0 * d - m1);
+        elong += 0.66 * Math.sin(2.0 * d);
+        while (elong > 360.0) {
+        elong -= 360.0;
+        }
+
+        var moon = ((elong + 6.43) / 360.0) * 28.0;
+        // System.println("Moon Phase: " + moon.format("%f"));
+        return Math.round(moon / 4.0).toNumber();
+    }
+
+    private function getJulianDay(
+        y as Number,
+        m as Number,
+        d as Number,
+        h as Number
+    ) as Float {
+        var day_fraction = h.toFloat() / 24.0;
+
+        if (m <= 2) {
+            y -= 1;
+            m += 12;
+        }
+
+        var a = (y.toFloat() / 100.0).toNumber();
+        var b = 2 - a + (a.toFloat() / 4).toNumber();
+
+        return (
+            (365.25 * (y + 4716)).toNumber() +
+            (30.6001 * (m + 1)).toNumber() +
+            d.toFloat() +
+            day_fraction +
+            b -
+            1524.5
+        );
     }
 
     private function checkComplications() as Void {
